@@ -18,7 +18,11 @@
 
 static int AT_EXP_CONV disconnection_callback(AT_H hndl, AT_WC* name, void* context)
 {
+    if ( context == nullptr ) return; // just check (should not be NULL!!!)
+
     ANDOR_Camera *camera = (ANDOR_Camera*)context;
+    if ( camera == nullptr ) return; // just check
+
     camera->disconnectFromCamera();
 }
 

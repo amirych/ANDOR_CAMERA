@@ -161,7 +161,7 @@ protected:
 
     void printLog(const QString ident, const QString log_str, int log_level = 0);
 
-    static int scanConnectedCameras();
+    static int scanConnectedCameras(); // scan connected cameras when the first object will be created
 };
 
 
