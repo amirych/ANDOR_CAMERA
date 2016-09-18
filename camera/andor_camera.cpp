@@ -18,10 +18,10 @@
 
 static int AT_EXP_CONV disconnection_callback(AT_H hndl, AT_WC* name, void* context)
 {
-    if ( context == nullptr ) return; // just check (should not be NULL!!!)
+    if ( context == nullptr ) return AT_ERR_INVALIDHANDLE; // just check (should not be NULL!!!)
 
     ANDOR_Camera *camera = (ANDOR_Camera*)context;
-    if ( camera == nullptr ) return; // just check
+    if ( camera == nullptr ) return AT_ERR_INVALIDHANDLE; // just check
 
     camera->disconnectFromCamera();
 }

@@ -14,7 +14,19 @@ AndorSDK_Exception::AndorSDK_Exception(int err_code, const char *context):
 }
 
 
-void andor_sdk_assert(int err, const char *context)
+int AndorSDK_Exception::getError() const
+{
+    return errCode;
+}
+
+
+const char* AndorSDK_Exception::what() const noexcept
+{
+    return msg.toLatin1().data();
+}
+
+
+inline void andor_sdk_assert(int err, const char *context)
 {
     if ( err != AT_SUCCESS ) {
         throw AndorSDK_Exception(err, context);
@@ -22,7 +34,7 @@ void andor_sdk_assert(int err, const char *context)
 }
 
 
-void andor_sdk_assert(int err, const QString &context)
+inline void andor_sdk_assert(int err, const QString &context)
 {
     andor_sdk_assert(err,context.toLatin1().data());
 }
