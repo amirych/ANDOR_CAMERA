@@ -143,6 +143,10 @@ signals:
 
 
 public slots:
+    void acquisitioStart();
+    void acquisitioStop();
+    void setFitsFilename(const QString &filename);
+    void setFitsFilename(const char* filename);
 
 protected:
 

@@ -58,7 +58,7 @@ ANDOR_Camera::ANDOR_Feature ANDOR_Camera::SoftwareVersion(AT_HANDLE_SYSTEM,"Soft
 
 ANDOR_Camera::ANDOR_Camera(QObject *parent) : QObject(parent),
     lastError(AT_SUCCESS), cameraLog(nullptr), cameraHndl(AT_HANDLE_SYSTEM),
-    CameraPresent("CameraPresent"), cameraFeature()
+    CameraPresent("CameraPresent"), cameraFeature(), currentFitsFilename("")
 {
     if ( !numberOfCreatedObjects ) {
         AT_InitialiseLibrary();
@@ -253,9 +253,9 @@ bool ANDOR_Camera::connectToCamera(int device_index, std::ostream *log_file)
 }
 
 
-bool ANDOR_Camera::connectToCamera(QString &what, ANDOR_CameraInfo::ANDOR_CameraInfoType type, std::ostream *log_file)
+bool ANDOR_Camera::connectToCamera(QString &identifier, ANDOR_CameraInfo::ANDOR_CameraInfoType type, std::ostream *log_file)
 {
-    QString str = what.trimmed();
+    QString str = identifier.trimmed();
     if ( str.isNull() || str.isEmpty() ) return false;
 
     QString msg = "Ask for connection to camera by ";
@@ -276,7 +276,11 @@ bool ANDOR_Camera::connectToCamera(QString &what, ANDOR_CameraInfo::ANDOR_Camera
            msg += "'ControllerID'";
            break;
         }
-        default: return false; // unknown type!
+    default: {
+           msg += "'unknown identifier type!!! Cannot open a camera!!!'";
+           printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+           return false; // unknown type!
+        }
     }
     msg += " identificator ...";
     printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
@@ -335,13 +339,32 @@ void ANDOR_Camera::disconnectFromCamera()
 }
 
 
+                    /*  PUBLIC SLOTS  */
+
+void ANDOR_Camera::acquisitioStart()
+{
+    andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStart"),);
+}
+
+
+void ANDOR_Camera::acquisitioStop()
+{
+    andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStop"));
+}
+
+
+void ANDOR_Camera::setFitsFilename(const QString &filename)
+{
+    currentFitsFilename = filename.trimmed();
+}
+
 
                     /*  PROTECTED METHODS  */
 
 void ANDOR_Camera::printLog(const QString ident, const QString log_str, int log_level)
 {
     if ( cameraLog ) {
-        QString str;
+        QString str = QTIME_STAMP;
         str.fill(' ',log_level*ANDOR_CAMERA_LOG_LEVEL_TAB);
         str.append(log_str);
         if ( ident.length() ) {
