@@ -106,7 +106,7 @@ public:
     virtual ~ANDOR_Camera();
 
     bool connectToCamera(int device_index = 0, std::ostream *log_file = nullptr);
-    bool connectToCamera(QString &what, ANDOR_CameraInfo::ANDOR_CameraInfoType type = ANDOR_CameraInfo::SerialNumber,
+    bool connectToCamera(QString &identifier, ANDOR_CameraInfo::ANDOR_CameraInfoType type = ANDOR_CameraInfo::SerialNumber,
                          std::ostream *log_file = nullptr);
 
     void disconnectFromCamera();
@@ -132,9 +132,10 @@ public:
     static ANDOR_Feature SoftwareVersion;
 
 
-                /* "CameraPresent" feature declaration */
+                /* "CameraPresent" and "CameraAcquiring" feature declarations */
 
     ANDOR_Feature CameraPresent;
+    ANDOR_Feature CameraAcquiring;
 
 signals:
     void lastCameraError(int err);
@@ -143,10 +144,10 @@ signals:
 
 
 public slots:
-    void acquisitioStart();
-    void acquisitioStop();
-    void setFitsFilename(const QString &filename);
-    void setFitsFilename(const char* filename);
+    void acquisitionStart();
+    void acquisitionStop();
+
+    void setFitsFilename(const QString &filename, const QString &userFitsHdrFilename = QString::null);
 
 protected:
 
@@ -162,6 +163,9 @@ protected:
     std::ostream *cameraLog;
 
     ANDOR_Feature cameraFeature;
+
+    QString currentFitsFilename;
+    QString currentUserFitsHeaderFilename;
 
     void printLog(const QString ident, const QString log_str, int log_level = 0);
 
