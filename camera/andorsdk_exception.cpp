@@ -1,5 +1,5 @@
 #include "andorsdk_exception.h"
-#include "atcore.h"
+//#include "atcore.h"
 
 AndorSDK_Exception::AndorSDK_Exception(int err_code, const QString &context):
     exception(), msg(context), errCode(err_code)
@@ -26,15 +26,15 @@ const char* AndorSDK_Exception::what() const noexcept
 }
 
 
-inline void andor_sdk_assert(int err, const char *context)
-{
-    if ( err != AT_SUCCESS ) {
-        throw AndorSDK_Exception(err, context);
-    }
-}
+//inline void andor_sdk_assert(int err, const char *context)
+//{
+//    if ( err != AT_SUCCESS ) {
+//        throw AndorSDK_Exception(err, context);
+//    }
+//}
 
 
-inline void andor_sdk_assert(int err, const QString &context)
-{
-    andor_sdk_assert(err,context.toLatin1().data());
-}
+//inline void andor_sdk_assert(int err, const QString &context)
+//{
+//    andor_sdk_assert(err,context.toLatin1().data());
+//}

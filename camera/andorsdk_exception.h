@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <exception>
+#include "atcore.h"
 
 class AndorSDK_Exception : public std::exception
 {
@@ -20,8 +21,17 @@ private:
 };
 
 
-inline void andor_sdk_assert(int err, const char* context = nullptr);
-inline void andor_sdk_assert(int err, const QString& context = QString::null);
+inline void andor_sdk_assert(int err, const char* context = nullptr)
+{
+    if ( err != AT_SUCCESS ) {
+        throw AndorSDK_Exception(err, context);
+    }
+};
+
+inline void andor_sdk_assert(int err, const QString& context = QString::null)
+{
+    andor_sdk_assert(err,context.toLatin1().data());
+};
 
 
 #endif // ANDORSDK_EXCEPTION_H

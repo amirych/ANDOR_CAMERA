@@ -1,7 +1,6 @@
 #include "andor_camera.h"
 #include "andor_sdk_features.h"
 #include "andorsdk_exception.h"
-#include "waitbufferthread.h"
 
 #include <QDateTime>
 
@@ -10,8 +9,6 @@
 #define CTIME_STAMP QDateTime::currentDateTime().toString(" dd-MM-yyyy hh:mm:ss: ").toUtf8().data()
 #define QTIME_STAMP QDateTime::currentDateTime().toString(" dd-MM-yyyy hh:mm:ss: ")
 
-#define ANDOR_CAMERA_LOG_CAMERA_IDENT "[CAMERA]"
-#define ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT "[ANDOR SDK]"
 
 
             /* CameraPresent feature callback function  */
@@ -59,7 +56,8 @@ ANDOR_Camera::ANDOR_Feature ANDOR_Camera::SoftwareVersion(AT_HANDLE_SYSTEM,"Soft
 ANDOR_Camera::ANDOR_Camera(QObject *parent) : QObject(parent),
     lastError(AT_SUCCESS), cameraLog(nullptr), cameraHndl(AT_HANDLE_SYSTEM),
     CameraPresent("CameraPresent"), CameraAcquiring("CameraAcquiring"), cameraFeature(),
-    currentFitsFilename(""), currentUserFitsHeaderFilename("")
+    currentFitsFilename(""), currentUserFitsHeaderFilename(""),
+    waitBufferThread(nullptr)
 {
     // camera handler for "CameraPresent"
     // and "CameraAcquiring" features will be
@@ -68,6 +66,14 @@ ANDOR_Camera::ANDOR_Camera(QObject *parent) : QObject(parent),
     if ( !numberOfCreatedObjects ) {
         AT_InitialiseLibrary();
         scanConnectedCameras();
+    }
+
+
+    try {
+        waitBufferThread = new WaitBufferThread(this);
+        waitBufferThreadUniquePtr = std::unique_ptr<WaitBufferThread>(waitBufferThread);
+    } catch (std::bad_alloc &ex) {
+        throw ex;
     }
 
     ++numberOfCreatedObjects;
@@ -352,25 +358,43 @@ void ANDOR_Camera::acquisitionStart()
 {
     QString log_msg;
 
-    if ( !CameraPresent ) {
-        log_msg = QString("Can not start an acquisition! Camera with handler %1 is not present!").arg(cameraHndl);
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
-        lastError = AT_ERR_CONNECTION;
-        emit lastCameraError(lastError);
-        return;
-    }
+    try {
+        if ( !CameraPresent ) {
+            log_msg = QString("Can not start an acquisition! Camera with handler %1 is not present!").arg(cameraHndl);
+            printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+            lastError = AT_ERR_CONNECTION;
+            emit lastCameraError(lastError);
+            return;
+        }
 
-    if ( CameraAcquiring ) {
-        log_msg = QString("Can not start an acquisition! Camera with handler %1 still acquiring!").arg(cameraHndl);
+        if ( CameraAcquiring ) {
+            log_msg = QString("Can not start an acquisition! Camera with handler %1 still acquiring!").arg(cameraHndl);
+            printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+            lastError = AT_ERR_DEVICEINUSE;
+            emit lastCameraError(lastError);
+            return;
+        }
+
+        log_msg = QString("Starting an acquisition for camera with handler %1").arg(cameraHndl);
+        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_msg);
+
+        log_msg = QString("AT_Command(%1,L\"AcquisionStart\")").arg(cameraHndl);
+        andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStart"),log_msg);
+
+        waitBufferThread->start();
+
+    } catch (AndorSDK_Exception &ex) {
+        log_msg = ex.what();
+        printLog(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
+        lastError = ex.getError();
+        emit lastCameraError(lastError);
+    } catch (std::bad_alloc &ex) {
+        log_msg = QString("Can not start an acquisition! "
+                          "Can not allocate memory for WaitBufferThread (camera handler %1)!!!").arg(cameraHndl);
         printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
         lastError = AT_ERR_DEVICEINUSE;
         emit lastCameraError(lastError);
-        return;
     }
-
-    WaitBufferThread *ww = new WaitBufferThread(this);
-
-    andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStart"),"ZZZ");
 }
 
 
@@ -383,8 +407,11 @@ void ANDOR_Camera::acquisitionStop()
         printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, str);
         andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStop"),"ZZZ");
     } catch ( AndorSDK_Exception &ex) {
+        lastError = ex.getError();
         str = QString("Failed to stop acquisition for camera handler %1 (Andor SDK error code %2)").arg(cameraHndl)
-                                                                                                   .arg(ex.getError());
+                                                                                                   .arg(lastError);
+        printLog(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, str);
+        emit lastCameraError(lastError);
     }
 }
 
@@ -402,9 +429,10 @@ void ANDOR_Camera::setFitsFilename(const QString &filename, const QString &userF
 void ANDOR_Camera::printLog(const QString ident, const QString log_str, int log_level)
 {
     if ( cameraLog ) {
-        QString str = QTIME_STAMP;
+        QString str;
         str.fill(' ',log_level*ANDOR_CAMERA_LOG_LEVEL_TAB);
         str.append(log_str);
+        *cameraLog << CTIME_STAMP;
         if ( ident.length() ) {
             *cameraLog << ident.toLatin1().data() << " ";
         }

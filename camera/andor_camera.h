@@ -5,10 +5,16 @@
 #include "andor_sdk_features.h"
 #include "atcore.h"
 
+
 #include <QObject>
 #include <QStringList>
+#include <QThread>
 #include <memory>
 #include <utility>
+
+
+#define ANDOR_CAMERA_LOG_CAMERA_IDENT "[CAMERA]"
+#define ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT "[ANDOR SDK]"
 
 
                 /*  ANDOR camera info structure  */
@@ -98,6 +104,20 @@ protected:
         QString str_val; // for string and enumerated type features
     };
 
+                /*   ANDOR SDK AT_WaitBuffer thread class   */
+
+    class WaitBufferThread : public QThread
+    {
+    public:
+        WaitBufferThread(ANDOR_Camera *camera, unsigned int timeout = AT_INFINITE);
+
+        void run();
+
+    private:
+        ANDOR_Camera *cameraPtr;
+        unsigned int waitBufferTimeout;
+    };
+    friend class WaitBufferThread;
 
 public:
 
@@ -166,6 +186,9 @@ protected:
 
     QString currentFitsFilename;
     QString currentUserFitsHeaderFilename;
+
+    std::unique_ptr<WaitBufferThread> waitBufferThreadUniquePtr;
+    WaitBufferThread *waitBufferThread;
 
     void printLog(const QString ident, const QString log_str, int log_level = 0);
 
