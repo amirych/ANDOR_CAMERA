@@ -18,4 +18,9 @@ void ANDOR_Camera::WaitBufferThread::run()
     }
 
 
+    try {
+
+    } catch (AndorSDK_Exception &ex) {
+
+    }
 }
