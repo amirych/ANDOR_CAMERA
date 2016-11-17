@@ -57,6 +57,7 @@ ANDOR_Camera::ANDOR_Camera(QObject *parent) : QObject(parent),
     lastError(AT_SUCCESS), cameraLog(nullptr), cameraHndl(AT_HANDLE_SYSTEM),
     CameraPresent("CameraPresent"), CameraAcquiring("CameraAcquiring"), cameraFeature(),
     currentFitsFilename(""), currentUserFitsHeaderFilename(""),
+    maxBuffersNumber(ANDOR_CAMERA_DEFAULT_MAX_BUFFERS_NUMBER),
     waitBufferThread(nullptr)
 {
     // camera handler for "CameraPresent"
@@ -171,6 +172,18 @@ QList<ANDOR_CameraInfo> ANDOR_Camera::getConnectedCameras()
 }
 
 
+void ANDOR_Camera::setMaxBuffersNumber(const qint64 num)
+{
+    maxBuffersNumber = (num > 0) ? num : ANDOR_CAMERA_DEFAULT_MAX_BUFFERS_NUMBER;
+}
+
+
+qint64 ANDOR_Camera::getMaxBuffersNumber() const
+{
+    return maxBuffersNumber;
+}
+
+
 ANDOR_Camera::ANDOR_Feature& ANDOR_Camera::operator [](const QString &feature_name)
 {
     if ( !ANDOR_SDK_DEFS::ANDOR_SDK_FEATURES.contains(feature_name) ) {
@@ -255,7 +268,7 @@ bool ANDOR_Camera::connectToCamera(int device_index, std::ostream *log_file)
 
     } catch ( AndorSDK_Exception &ex ) {
         lastError = ex.getError();
-        emit lastCameraError(lastError);
+//        emit lastCameraError(lastError);
         printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,ex.what());
         ok = false;
     }
@@ -375,6 +388,32 @@ void ANDOR_Camera::acquisitionStart()
             return;
         }
 
+        // compute number and allocate image buffers
+
+        AT_64 frame_count = (*this)["FrameCounter"];
+        AT_64 accum_count = (*this)["AccumulateCounter"];
+        AT_64 image_size = (*this)["ImageSizeBytes"];
+
+        AT_64 requested_N_buffers = frame_count/accum_count;
+
+        imageBufferListSize = (requested_N_buffers <= maxBuffersNumber ) ? requested_N_buffers : maxBuffersNumber;
+
+        imageBufferList = std::unique_ptr<unsigned char*>(new unsigned char*[imageBufferListSize]);
+
+
+        unsigned char** buff_ptr = imageBufferList.get();
+        for (AT_64 i = 0; i < imageBufferListSize; ++i ) buff_ptr[i] = nullptr; // init to null pointer
+
+        for (AT_64 i = 0; i < imageBufferListSize; ++i ) {
+            alignas(8) unsigned char* pbuff = new unsigned char[image_size];
+            buff_ptr[i] = pbuff;
+            QString addr;
+            addr.sprintf("%08p",buff_ptr[i]);
+            log_msg = QString("AT_QueueBuffer(%1,%2,%2)").arg(cameraHndl).arg(addr).arg(image_size);
+            andor_sdk_assert(AT_QueueBuffer(cameraHndl,buff_ptr[i],image_size),log_msg);
+        }
+
+
         log_msg = QString("Starting an acquisition for camera with handler %1").arg(cameraHndl);
         printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_msg);
 
@@ -385,15 +424,16 @@ void ANDOR_Camera::acquisitionStart()
 
     } catch (AndorSDK_Exception &ex) {
         log_msg = ex.what();
-        printLog(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
+        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
         lastError = ex.getError();
         emit lastCameraError(lastError);
     } catch (std::bad_alloc &ex) {
         log_msg = QString("Can not start an acquisition! "
-                          "Can not allocate memory for WaitBufferThread (camera handler %1)!!!").arg(cameraHndl);
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
-        lastError = AT_ERR_DEVICEINUSE;
+                          "Can not allocate memory for image buffers (camera handler %1)!!!").arg(cameraHndl);
+        printError(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+        lastError = AT_ERR_NOMEMORY;
         emit lastCameraError(lastError);
+        deleteImageBuffers();
     }
 }
 
@@ -405,12 +445,13 @@ void ANDOR_Camera::acquisitionStop()
     try {
         str = QString("Stop acquisition for camera handler %1!").arg(cameraHndl);
         printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, str);
-        andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStop"),"ZZZ");
+        str = QString("AT_Command(%1,L\"AcquisionStop\")").arg(cameraHndl);
+        andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStop"),str);
     } catch ( AndorSDK_Exception &ex) {
         lastError = ex.getError();
         str = QString("Failed to stop acquisition for camera handler %1 (Andor SDK error code %2)").arg(cameraHndl)
                                                                                                    .arg(lastError);
-        printLog(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, str);
+        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, str);
         emit lastCameraError(lastError);
     }
 }
@@ -425,6 +466,19 @@ void ANDOR_Camera::setFitsFilename(const QString &filename, const QString &userF
 
 
                     /*  PROTECTED METHODS  */
+
+
+void ANDOR_Camera::deleteImageBuffers() // flush and delete buffers
+{
+    QString log_msg = QString("AT_Flush(%1)").arg(cameraHndl);
+    andor_sdk_assert(AT_Flush(cameraHndl),log_msg);
+
+    unsigned char** buff_ptr = imageBufferList.get();
+    for (AT_64 i = 0; i < imageBufferListSize; ++i ) {
+        delete[] buff_ptr[i];
+    }
+}
+
 
 void ANDOR_Camera::printLog(const QString ident, const QString log_str, int log_level)
 {
@@ -441,6 +495,12 @@ void ANDOR_Camera::printLog(const QString ident, const QString log_str, int log_
 
 }
 
+
+void ANDOR_Camera::printError(const QString ident, const QString err_str, int log_level)
+{
+    QString err_ident = ident + " " + ANDOR_CAMERA_LOG_ERROR;
+    printLog(err_ident, err_str, log_level);
+}
 
                             /****************************************
                             *                                       *

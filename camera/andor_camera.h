@@ -15,6 +15,10 @@
 
 #define ANDOR_CAMERA_LOG_CAMERA_IDENT "[CAMERA]"
 #define ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT "[ANDOR SDK]"
+#define ANDOR_CAMERA_LOG_ERROR "[AN ERROR OCCURED! ERROR MESSAGE]"
+
+#define ANDOR_CAMERA_DEFAULT_MAX_BUFFERS_NUMBER 50 // default maximum buffers number to be allocated for reading data
+
 
 
                 /*  ANDOR camera info structure  */
@@ -139,6 +143,9 @@ public:
 
     static QList<ANDOR_CameraInfo> getConnectedCameras();
 
+    void setMaxBuffersNumber(const qint64 num);
+    qint64 getMaxBuffersNumber() const;
+
                 /* operator[] for accessing Andor SDK features (const and non-const versions) */
 
 //    const ANDOR_Feature& operator[](QString &feature_name) const;
@@ -187,10 +194,18 @@ protected:
     QString currentFitsFilename;
     QString currentUserFitsHeaderFilename;
 
+    qint64 maxBuffersNumber;
+
     std::unique_ptr<WaitBufferThread> waitBufferThreadUniquePtr;
     WaitBufferThread *waitBufferThread;
 
+    std::unique_ptr<unsigned char*> imageBufferList;
+    size_t imageBufferListSize;
+
+    void deleteImageBuffers();
+
     void printLog(const QString ident, const QString log_str, int log_level = 0);
+    void printError(const QString ident, const QString err_str, int log_level = 0);
 
     static int scanConnectedCameras(); // scan connected cameras when the first object will be created
 };
