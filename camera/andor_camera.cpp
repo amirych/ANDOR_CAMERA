@@ -58,7 +58,8 @@ ANDOR_Camera::ANDOR_Camera(QObject *parent) : QObject(parent),
     CameraPresent("CameraPresent"), CameraAcquiring("CameraAcquiring"), cameraFeature(),
     currentFitsFilename(""), currentUserFitsHeaderFilename(""),
     maxBuffersNumber(ANDOR_CAMERA_DEFAULT_MAX_BUFFERS_NUMBER),
-    waitBufferThread(nullptr)
+    waitBufferThread(nullptr),
+    imageBufferList(std::unique_ptr<unsigned char*>(nullptr)), imageBufferListSize(0)
 {
     // camera handler for "CameraPresent"
     // and "CameraAcquiring" features will be
@@ -423,9 +424,9 @@ void ANDOR_Camera::acquisitionStart()
         waitBufferThread->start();
 
     } catch (AndorSDK_Exception &ex) {
-        log_msg = ex.what();
-        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
         lastError = ex.getError();
+        log_msg = QString(ex.what() + " (Andor SDK error code: %1)").arg(lastError);
+        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
         emit lastCameraError(lastError);
     } catch (std::bad_alloc &ex) {
         log_msg = QString("Can not start an acquisition! "
@@ -483,10 +484,12 @@ void ANDOR_Camera::deleteImageBuffers() // flush and delete buffers
 void ANDOR_Camera::printLog(const QString ident, const QString log_str, int log_level)
 {
     if ( cameraLog ) {
-        QString str;
-        str.fill(' ',log_level*ANDOR_CAMERA_LOG_LEVEL_TAB);
-        str.append(log_str);
         *cameraLog << CTIME_STAMP;
+        if ( log_level > 0 ) {
+            QString str;
+            str.fill(' ',log_level*ANDOR_CAMERA_LOG_LEVEL_TAB);
+            *cameraLog <<  str.toLatin1().data();
+        }
         if ( ident.length() ) {
             *cameraLog << ident.toLatin1().data() << " ";
         }
@@ -498,7 +501,8 @@ void ANDOR_Camera::printLog(const QString ident, const QString log_str, int log_
 
 void ANDOR_Camera::printError(const QString ident, const QString err_str, int log_level)
 {
-    QString err_ident = ident + " " + ANDOR_CAMERA_LOG_ERROR;
+    QString err_ident;
+    if ( ident.length() ) err_ident = ident + " " + ANDOR_CAMERA_LOG_ERROR; else err_ident = ANDOR_CAMERA_LOG_ERROR;
     printLog(err_ident, err_str, log_level);
 }
 

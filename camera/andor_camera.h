@@ -169,6 +169,8 @@ signals:
     void cameraIsOpened();
     void cameraIsClosed();
 
+    void imageReady();
+
 
 public slots:
     void acquisitionStart();
