@@ -2,6 +2,7 @@
 #define ANDOR_CAMERA_H
 
 #include "../export_dec.h"
+#include "andorsdk_exception.h"
 #include "andor_sdk_features.h"
 #include "atcore.h"
 
@@ -124,6 +125,7 @@ protected:
     friend class WaitBufferThread;
 
 public:
+    enum LOG_IDENTIFICATOR {CAMERA_INFO, SDK_ERROR, CAMERA_ERROR};
 
     explicit ANDOR_Camera(QObject *parent = 0);
 
@@ -202,12 +204,16 @@ protected:
     WaitBufferThread *waitBufferThread;
 
     std::unique_ptr<unsigned char*> imageBufferList;
-    size_t imageBufferListSize;
+    qint64 imageBufferListSize;
+    qint64 requestedFramesNumber;
 
     void deleteImageBuffers();
 
     void printLog(const QString ident, const QString log_str, int log_level = 0);
     void printError(const QString ident, const QString err_str, int log_level = 0);
+
+    void logToFile(const ANDOR_Camera::LOG_IDENTIFICATOR ident, const QString log_str, int identation = 0);
+    void logToFile(const AndorSDK_Exception &ex, int identation = 0);
 
     static int scanConnectedCameras(); // scan connected cameras when the first object will be created
 };

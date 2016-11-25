@@ -1,10 +1,9 @@
 #include "andor_camera.h"
-#include "andor_sdk_features.h"
-#include "andorsdk_exception.h"
 
 #include <QDateTime>
 
 #define ANDOR_CAMERA_LOG_LEVEL_TAB 3 // indentation length in symbols for log levels
+#define ANDOR_CAMERA_LOG_IDENTATION 3 // indentation length in symbols
 
 #define CTIME_STAMP QDateTime::currentDateTime().toString(" dd-MM-yyyy hh:mm:ss: ").toUtf8().data()
 #define QTIME_STAMP QDateTime::currentDateTime().toString(" dd-MM-yyyy hh:mm:ss: ")
@@ -217,7 +216,8 @@ bool ANDOR_Camera::connectToCamera(int device_index, std::ostream *log_file)
     printLog("",QTIME_STAMP);
     printLog("",log_str);
 
-    printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,"Try to open connection to Andor camera ... ");
+    //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,"Try to open connection to Andor camera ... ");
+    logToFile(ANDOR_Camera::CAMERA_INFO,"Try to open connection to Andor camera ... ");
 
     bool ok;
 
@@ -225,18 +225,21 @@ bool ANDOR_Camera::connectToCamera(int device_index, std::ostream *log_file)
 //        AT_64 dev_num = (*this)["DeviceCount"];
         AT_64 dev_num = ANDOR_Camera::DeviceCount;
         log_str = QString("Number of found cameras: %1").arg(dev_num);
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_str,1);
+        //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_str,1);
+        logToFile(ANDOR_Camera::CAMERA_INFO,log_str,1);
 
         if ( dev_num == 0 ) {
-            printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,"No one camera was detected!!! Can not perform connection!!!");
+            //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,"No one camera was detected!!! Can not perform connection!!!");
+            logToFile(ANDOR_Camera::CAMERA_ERROR,"No one camera was detected!!! Can not initiate the connection!!!");
             lastError = AT_ERR_CONNECTION;
             emit lastCameraError(lastError);
 
             return false;
         }
 
-        log_str = QString(" initiate connection to device with index %1 ...").arg(device_index);
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_str,1);
+        log_str = QString("initiate connection to device with index %1 ...").arg(device_index);
+        //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_str,1);
+        logToFile(ANDOR_Camera::CAMERA_INFO,log_str,1);
 
         andor_sdk_assert( AT_Open(device_index,&cameraHndl), QString("AT_Open(%1,&hndl)").arg(device_index) );
         CameraPresent.setCameraHndl(cameraHndl);
@@ -245,20 +248,24 @@ bool ANDOR_Camera::connectToCamera(int device_index, std::ostream *log_file)
             throw AndorSDK_Exception(AT_ERR_CONNECTION,"Connection lost!");
         }
         log_str = QString("Connection established! Camera handler is %1 ").arg(cameraHndl);
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_str);
+        //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_str);
+        logToFile(ANDOR_Camera::CAMERA_INFO,log_str);
 
+        // initialize features (set working camera handler)
         CameraAcquiring.setCameraHndl(cameraHndl);
 
 
         cameraIndex = device_index;
 
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, "Try to register 'CameraPresent'-feature callback function ...");
+        //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, "Try to register 'CameraPresent'-feature callback function ...");
+        logToFile(ANDOR_Camera::CAMERA_INFO,"Try to register 'CameraPresent'-feature callback function ...");
 
         wchar_t name[] = L"CameraPresent";
         andor_sdk_assert( AT_RegisterFeatureCallback(cameraHndl,name,(FeatureCallback)disconnection_callback,(void*)this),
                           QString("AT_RegisterFeatureCallback(%1,%2)").arg(cameraHndl).arg(QString::fromWCharArray(name)));
 
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, "The function was registered successfully!");
+        //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, "The function was registered successfully!");
+        logToFile(ANDOR_Camera::CAMERA_INFO, "The callback function was registered successfully!");
 
         cameraFeature.setCameraHndl(cameraHndl);
 
@@ -270,7 +277,8 @@ bool ANDOR_Camera::connectToCamera(int device_index, std::ostream *log_file)
     } catch ( AndorSDK_Exception &ex ) {
         lastError = ex.getError();
 //        emit lastCameraError(lastError);
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,ex.what());
+        //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,ex.what());
+        logToFile(ex);
         ok = false;
     }
 
@@ -305,12 +313,14 @@ bool ANDOR_Camera::connectToCamera(QString &identifier, ANDOR_CameraInfo::ANDOR_
         }
     default: {
            msg += "'unknown identifier type!!! Cannot open a camera!!!'";
-           printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+           //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+           logToFile(ANDOR_Camera::CAMERA_ERROR,msg);
            return false; // unknown type!
         }
     }
     msg += " identificator ...";
-    printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+    //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+    logToFile(ANDOR_Camera::CAMERA_INFO, msg);
 
 
     int ok;
@@ -332,17 +342,27 @@ bool ANDOR_Camera::connectToCamera(QString &identifier, ANDOR_CameraInfo::ANDOR_
                ok = QString::compare(str,foundCameras[i].controllerID);
                break;
             }
-            default: return false; // unknown type!
+            default: {
+                msg = QString("Unknown type of camera identificator (type = %1). Can not open a camera connection!").arg(type);
+                //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+                logToFile(ANDOR_Camera::CAMERA_ERROR, msg);
+                return false; // unknown type!
+            }
         }
 
         if ( !ok ) { // coincidence was found
             msg = QString("The identificator was found! The camera device index is %1").arg(foundCameras[i].device_index);
-            printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+            //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+            logToFile(ANDOR_Camera::CAMERA_INFO, msg);
             return connectToCamera(foundCameras[i].device_index, log_file);
         }
     }
 
     // coincidence was not found
+    msg = QString("The camera with indentificator \"%1\" was not found! Can not open a camera connection!").arg(identifier);
+    //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,msg);
+    logToFile(ANDOR_Camera::CAMERA_ERROR, msg);
+
     return false;
 }
 
@@ -352,14 +372,19 @@ void ANDOR_Camera::disconnectFromCamera()
 {
 //    if ( !CameraPresent ) return;
 
-    QString str = QString("Unregistering 'CameraPresent'-feature callback function for camera with handler of %1").arg(cameraHndl);
-    printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, str);
+    //QString str = QString("Unregistering 'CameraPresent'-feature callback function for camera with handler of %1").arg(cameraHndl);
+    //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, str);
+    QString str = QString("Unregistering 'CameraPresent'-feature callback function");
+    logToFile(ANDOR_Camera::CAMERA_INFO, str);
 
     wchar_t name[] = L"CameraPresent";
     AT_UnregisterFeatureCallback(cameraHndl,name,(FeatureCallback)disconnection_callback,nullptr);
 
-    str = QString("Disconnection from camera with handler of %1").arg(cameraHndl);
-    printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, str);
+    //str = QString("Disconnection from camera with handler of %1").arg(cameraHndl);
+    //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, str);
+    str = QString("Disconnection from camera");
+    logToFile(ANDOR_Camera::CAMERA_INFO, str);
+
     AT_Close(cameraHndl);
 
     emit cameraIsClosed();
@@ -374,16 +399,22 @@ void ANDOR_Camera::acquisitionStart()
 
     try {
         if ( !CameraPresent ) {
-            log_msg = QString("Can not start an acquisition! Camera with handler %1 is not present!").arg(cameraHndl);
-            printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+            //log_msg = QString("Can not start an acquisition! Camera with handler %1 is not present!").arg(cameraHndl);
+            //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+            log_msg = QString("Can not start an acquisition! Camera is not present!");
+            logToFile(ANDOR_Camera::CAMERA_ERROR, log_msg);
+
             lastError = AT_ERR_CONNECTION;
             emit lastCameraError(lastError);
             return;
         }
 
         if ( CameraAcquiring ) {
-            log_msg = QString("Can not start an acquisition! Camera with handler %1 still acquiring!").arg(cameraHndl);
-            printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+            //log_msg = QString("Can not start an acquisition! Camera with handler %1 still acquiring!").arg(cameraHndl);
+            //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+            log_msg = QString("Can not start an acquisition! Camera is still acquiring!");
+            logToFile(ANDOR_Camera::CAMERA_ERROR, log_msg);
+
             lastError = AT_ERR_DEVICEINUSE;
             emit lastCameraError(lastError);
             return;
@@ -409,14 +440,16 @@ void ANDOR_Camera::acquisitionStart()
             alignas(8) unsigned char* pbuff = new unsigned char[image_size];
             buff_ptr[i] = pbuff;
             QString addr;
-            addr.sprintf("%08p",buff_ptr[i]);
+            addr.sprintf("%p",buff_ptr[i]);
             log_msg = QString("AT_QueueBuffer(%1,%2,%2)").arg(cameraHndl).arg(addr).arg(image_size);
             andor_sdk_assert(AT_QueueBuffer(cameraHndl,buff_ptr[i],image_size),log_msg);
         }
 
 
-        log_msg = QString("Starting an acquisition for camera with handler %1").arg(cameraHndl);
-        printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_msg);
+        //log_msg = QString("Starting an acquisition for camera with handler %1").arg(cameraHndl);
+        //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT,log_msg);
+        log_msg = QString("Starting an acquisition ...");
+        logToFile(ANDOR_Camera::CAMERA_INFO, log_msg);
 
         log_msg = QString("AT_Command(%1,L\"AcquisionStart\")").arg(cameraHndl);
         andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStart"),log_msg);
@@ -425,13 +458,16 @@ void ANDOR_Camera::acquisitionStart()
 
     } catch (AndorSDK_Exception &ex) {
         lastError = ex.getError();
-        log_msg = QString(ex.what() + " (Andor SDK error code: %1)").arg(lastError);
-        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
+//        log_msg = QString(ex.what()) + QString(" (Andor SDK error code: %1)").arg(lastError);
+//        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
+        logToFile(ex);
         emit lastCameraError(lastError);
     } catch (std::bad_alloc &ex) {
-        log_msg = QString("Can not start an acquisition! "
-                          "Can not allocate memory for image buffers (camera handler %1)!!!").arg(cameraHndl);
-        printError(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+//        log_msg = QString("Can not start an acquisition! "
+//                          "Can not allocate memory for image buffers (camera handler %1)!!!").arg(cameraHndl);
+//        printError(ANDOR_CAMERA_LOG_CAMERA_IDENT, log_msg);
+        log_msg = QString("Can not start an acquisition! Can not allocate memory for image buffers");
+        logToFile(ANDOR_Camera::CAMERA_INFO, log_msg);
         lastError = AT_ERR_NOMEMORY;
         emit lastCameraError(lastError);
         deleteImageBuffers();
@@ -450,9 +486,12 @@ void ANDOR_Camera::acquisitionStop()
         andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStop"),str);
     } catch ( AndorSDK_Exception &ex) {
         lastError = ex.getError();
-        str = QString("Failed to stop acquisition for camera handler %1 (Andor SDK error code %2)").arg(cameraHndl)
-                                                                                                   .arg(lastError);
-        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, str);
+//        str = QString("Failed to stop acquisition for camera handler %1 (Andor SDK error code %2)").arg(cameraHndl)
+//                                                                                                   .arg(lastError);
+//        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, str);
+        str = "Failed to stop acquisition!";
+        logToFile(ANDOR_Camera::CAMERA_ERROR,str);
+        logToFile(ex);
         emit lastCameraError(lastError);
     }
 }
@@ -505,6 +544,52 @@ void ANDOR_Camera::printError(const QString ident, const QString err_str, int lo
     if ( ident.length() ) err_ident = ident + " " + ANDOR_CAMERA_LOG_ERROR; else err_ident = ANDOR_CAMERA_LOG_ERROR;
     printLog(err_ident, err_str, log_level);
 }
+
+
+void ANDOR_Camera::logToFile(const ANDOR_Camera::LOG_IDENTIFICATOR ident, const QString log_str, int identation)
+{
+    QString str = QTIME_STAMP;
+    QString tab;
+
+    if ( !cameraLog ) return;
+
+    switch (ident) {
+        case ANDOR_Camera::CAMERA_INFO:
+                if (cameraHndl != AT_HANDLE_SYSTEM ) { // camera is already connected. add camera handler to log string
+                    str += QString("[CAMERA INFO, HANDLER %1] ").arg(cameraHndl);
+                } else {
+                    str += "[CAMERA INFO] ";
+                }
+                break;
+        case ANDOR_Camera::SDK_ERROR:
+                str += QString("[ANDOR SDK ERROR, HANDLER %1] ").arg(cameraHndl);
+                break;
+        case ANDOR_Camera::CAMERA_ERROR:
+                if (cameraHndl != AT_HANDLE_SYSTEM ) { // camera is already connected. add camera handler to log string
+                    str += QString("[CAMERA ERROR, HANDLER %1] ").arg(cameraHndl);
+                } else {
+                    str += "[CAMERA ERROR] ";
+                }
+                break;
+        default: ; // silently ignore
+    };
+
+    if ( identation > 0 ) {
+        tab.fill(' ',identation*ANDOR_CAMERA_LOG_IDENTATION);
+    }
+    str += tab + log_str;
+
+    *cameraLog << str.toLatin1().data() << std::endl << std::flush;
+}
+
+
+void ANDOR_Camera::logToFile(const AndorSDK_Exception &ex, int identation)
+{
+    QString err_str = QString(ex.what()) + QString(" [ANDOR SDK ERROR CODE: %1]").arg(ex.getError());
+    logToFile(ANDOR_Camera::SDK_ERROR,err_str,identation);
+}
+
+
 
                             /****************************************
                             *                                       *
