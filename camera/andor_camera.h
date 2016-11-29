@@ -171,7 +171,7 @@ signals:
     void cameraIsOpened();
     void cameraIsClosed();
 
-    void imageReady();
+    void imageReady(const AT_U8* buffer_ptr);
 
 
 public slots:

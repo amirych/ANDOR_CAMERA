@@ -48,15 +48,15 @@ void ANDOR_Camera::WaitBufferThread::run()
                           .arg(ret_addr).arg(addr);
                 cameraPtr->logToFile(ANDOR_Camera::CAMERA_ERROR,log_msg);
                 cameraPtr->lastError = AT_ERR_NULL_WAIT_PTR; // i had no idea what Andor SDK error is better for that
-                emit cameraPtr->lastCameraError(lastError);
+                emit cameraPtr->lastCameraError(cameraPtr->lastError);
                 return;
             }
 
-            emit cameraPtr->imageReady();
+            emit cameraPtr->imageReady(buff);
 
             // if number of requested frames is greater than maximum number of buffers, then
             // re-queue buffers (use of circular buffer list)
-            if ( currentExposureCounter > cameraPtr->imageBufferListSize ) {
+            if ( cameraPtr->requestedFramesNumber > cameraPtr->imageBufferListSize ) {
                 addr.sprintf("%p",buff_ptr[bufferCounter]);
                 log_msg = QString("AT_QueueBuffer(%1,%2,%2)").arg(cameraPtr->cameraHndl).arg(addr).arg(image_size);
                 andor_sdk_assert(AT_QueueBuffer(cameraPtr->cameraHndl,buff_ptr[bufferCounter],image_size),log_msg);
@@ -64,8 +64,8 @@ void ANDOR_Camera::WaitBufferThread::run()
         }
 
     } catch (AndorSDK_Exception &ex) {
-        cameraPtr->lastError = ex.what();
-        emit cameraPtr->lastCameraError(lastError);
+        cameraPtr->lastError = ex.getError();
+        emit cameraPtr->lastCameraError(cameraPtr->lastError);
         cameraPtr->logToFile(ex);
     }
 }

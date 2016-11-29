@@ -385,6 +385,8 @@ void ANDOR_Camera::disconnectFromCamera()
     str = QString("Disconnection from camera");
     logToFile(ANDOR_Camera::CAMERA_INFO, str);
 
+    deleteImageBuffers();
+
     AT_Close(cameraHndl);
 
     emit cameraIsClosed();
@@ -430,6 +432,8 @@ void ANDOR_Camera::acquisitionStart()
 
         imageBufferListSize = (requested_N_buffers <= maxBuffersNumber ) ? requested_N_buffers : maxBuffersNumber;
 
+        deleteImageBuffers(); // flush and delete previous allocated buffers
+
         imageBufferList = std::unique_ptr<unsigned char*>(new unsigned char*[imageBufferListSize]);
 
 
@@ -454,6 +458,8 @@ void ANDOR_Camera::acquisitionStart()
         log_msg = QString("AT_Command(%1,L\"AcquisionStart\")").arg(cameraHndl);
         andor_sdk_assert(AT_Command(cameraHndl,L"AcquisionStart"),log_msg);
 
+        lastError = AT_SUCCESS;
+
         waitBufferThread->start();
 
     } catch (AndorSDK_Exception &ex) {
@@ -461,7 +467,6 @@ void ANDOR_Camera::acquisitionStart()
 //        log_msg = QString(ex.what()) + QString(" (Andor SDK error code: %1)").arg(lastError);
 //        printError(ANDOR_CAMERA_LOG_ANDOR_SDK_IDENT, log_msg);
         logToFile(ex);
-        emit lastCameraError(lastError);
     } catch (std::bad_alloc &ex) {
 //        log_msg = QString("Can not start an acquisition! "
 //                          "Can not allocate memory for image buffers (camera handler %1)!!!").arg(cameraHndl);
@@ -469,9 +474,9 @@ void ANDOR_Camera::acquisitionStart()
         log_msg = QString("Can not start an acquisition! Can not allocate memory for image buffers");
         logToFile(ANDOR_Camera::CAMERA_INFO, log_msg);
         lastError = AT_ERR_NOMEMORY;
-        emit lastCameraError(lastError);
-        deleteImageBuffers();
     }
+
+    emit lastCameraError(lastError);
 }
 
 
@@ -505,11 +510,14 @@ void ANDOR_Camera::setFitsFilename(const QString &filename, const QString &userF
 
 
 
+
                     /*  PROTECTED METHODS  */
 
 
 void ANDOR_Camera::deleteImageBuffers() // flush and delete buffers
 {
+    if ( !imageBufferList ) return;
+
     QString log_msg = QString("AT_Flush(%1)").arg(cameraHndl);
     andor_sdk_assert(AT_Flush(cameraHndl),log_msg);
 
