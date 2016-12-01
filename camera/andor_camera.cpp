@@ -1,4 +1,5 @@
 #include "andor_camera.h"
+#include "waitbufferthread.h"
 
 #include <QDateTime>
 
@@ -62,7 +63,7 @@ ANDOR_Camera::ANDOR_Camera(QObject *parent) : QObject(parent),
 {
     // camera handler for "CameraPresent"
     // and "CameraAcquiring" features will be
-    // set in connectToCamera method!!!
+    // set in connectToCamera method as at this point there is still no camera handle!!!
 
     if ( !numberOfCreatedObjects ) {
         AT_InitialiseLibrary();
@@ -73,7 +74,9 @@ ANDOR_Camera::ANDOR_Camera(QObject *parent) : QObject(parent),
     try {
         waitBufferThread = new WaitBufferThread(this);
         waitBufferThreadUniquePtr = std::unique_ptr<WaitBufferThread>(waitBufferThread);
+        connect(waitBufferThread,&WaitBufferThread::bufferReady,this,&ANDOR_Camera::imageReady);
     } catch (std::bad_alloc &ex) {
+        lastError = AT_ERR_NOMEMORY;
         throw ex;
     }
 
@@ -385,6 +388,7 @@ void ANDOR_Camera::disconnectFromCamera()
     str = QString("Disconnection from camera");
     logToFile(ANDOR_Camera::CAMERA_INFO, str);
 
+    disconnect(waitBufferThread,&WaitBufferThread::bufferReady,this,&ANDOR_Camera::imageReady);
     deleteImageBuffers();
 
     AT_Close(cameraHndl);

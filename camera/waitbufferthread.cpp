@@ -1,15 +1,17 @@
-#include "andor_camera.h"
+#include "waitbufferthread.h"
 #include "andorsdk_exception.h"
 
 
-ANDOR_Camera::WaitBufferThread::WaitBufferThread(ANDOR_Camera *camera, unsigned int timeout):
+WaitBufferThread::WaitBufferThread(ANDOR_Camera *camera, unsigned int timeout):
+//    ANDOR_Camera::WaitBufferThread::WaitBufferThread(ANDOR_Camera *camera, unsigned int timeout):
     cameraPtr(camera), waitBufferTimeout(timeout)
 {
 
 }
 
 
-void ANDOR_Camera::WaitBufferThread::run()
+void WaitBufferThread::run()
+//void ANDOR_Camera::WaitBufferThread::run()
 {
     QString log_msg;
     AT_64 bufferCounter;
@@ -52,7 +54,8 @@ void ANDOR_Camera::WaitBufferThread::run()
                 return;
             }
 
-            emit cameraPtr->imageReady(buff);
+//            emit cameraPtr->imageReady(buff);
+            emit bufferReady(buff);
 
             // if number of requested frames is greater than maximum number of buffers, then
             // re-queue buffers (use of circular buffer list)

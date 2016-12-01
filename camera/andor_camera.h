@@ -1,4 +1,4 @@
-#ifndef ANDOR_CAMERA_H
+    #ifndef ANDOR_CAMERA_H
 #define ANDOR_CAMERA_H
 
 #include "../export_dec.h"
@@ -51,6 +51,8 @@ struct ANDOR_CAMERA_EXPORT_DECL ANDOR_CameraInfo
                  **********************************************/
 
 typedef int andor_enum_index_t; // type for ANDOR SDK enumerated feature index
+
+class WaitBufferThread;
 
 class ANDOR_CAMERA_EXPORT_DECL ANDOR_Camera : public QObject
 {
@@ -111,17 +113,17 @@ protected:
 
                 /*   ANDOR SDK AT_WaitBuffer thread class   */
 
-    class WaitBufferThread : public QThread
-    {
-    public:
-        WaitBufferThread(ANDOR_Camera *camera, unsigned int timeout = AT_INFINITE);
+//    class WaitBufferThread : public QThread
+//    {
+//    public:
+//        WaitBufferThread(ANDOR_Camera *camera, unsigned int timeout = AT_INFINITE);
 
-        void run();
+//        void run();
 
-    private:
-        ANDOR_Camera *cameraPtr;
-        unsigned int waitBufferTimeout;
-    };
+//    private:
+//        ANDOR_Camera *cameraPtr;
+//        unsigned int waitBufferTimeout;
+//    };
     friend class WaitBufferThread;
 
 public:
@@ -171,7 +173,7 @@ signals:
     void cameraIsOpened();
     void cameraIsClosed();
 
-    void imageReady(const AT_U8* buffer_ptr);
+    void imageReady(AT_U8* const buffer_ptr);
 
 
 public slots:
@@ -179,6 +181,7 @@ public slots:
     void acquisitionStop();
 
     void setFitsFilename(const QString &filename, const QString &userFitsHdrFilename = QString::null);
+
 
 protected:
 
