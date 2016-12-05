@@ -375,6 +375,11 @@ void ANDOR_Camera::disconnectFromCamera()
 {
 //    if ( !CameraPresent ) return;
 
+    if ( CameraAcquiring ) {
+        acquisitionStop();
+        waitBufferThread->wait(3000);
+    }
+
     //QString str = QString("Unregistering 'CameraPresent'-feature callback function for camera with handler of %1").arg(cameraHndl);
     //printLog(ANDOR_CAMERA_LOG_CAMERA_IDENT, str);
     QString str = QString("Unregistering 'CameraPresent'-feature callback function");
